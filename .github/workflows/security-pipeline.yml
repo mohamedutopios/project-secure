@@ -16,12 +16,6 @@ jobs:
         uses: returntocorp/semgrep-action@v1
         with:
           config: .semgrep.yml p/owasp-top-ten p/python p/secrets
-          generateSarif: "1"
-      - name: Upload SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: semgrep.sarif
 
   secrets-gitleaks:
     name: Secrets - Gitleaks
@@ -59,6 +53,9 @@ jobs:
   test-security:
     name: Tests - pytest
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      FLASK_ENV: testing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -135,7 +132,6 @@ jobs:
         uses: zaproxy/action-baseline@v0.12.0
         with:
           target: http://localhost:8080
-          rules_file_name: ""
           cmd_options: "-I"
       - name: Upload ZAP report
         if: always()
