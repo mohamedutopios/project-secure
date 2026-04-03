@@ -126,6 +126,10 @@ def cart():
     return render_template_string(BASE, content=content)
 
 
+@shop_bp.route("/health")
+def health():
+    return "ok"
+
 @shop_bp.route("/orders")
 @login_required
 def orders():
