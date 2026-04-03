@@ -12,7 +12,12 @@ from flask import g
 def get_db() -> sqlite3.Connection:
     if "db" not in g:
         from flask import current_app
-        conn = sqlite3.connect(current_app.config["DATABASE"])
+        import os
+        db_path = current_app.config.get("DATABASE", os.environ.get("DATABASE_PATH", "/tmp/shopsafe.db"))
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         g.db = conn
