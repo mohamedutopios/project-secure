@@ -29,6 +29,8 @@ RUN find . -name "*.pyc" -delete \
  && find . -name "*.md"  -delete \
  && find . -name "tests" -type d -exec rm -rf {} + 2>/dev/null || true
 
+ RUN touch /app/security.log && chown shopsafe:shopsafe /app/security.log
+
 # Basculer sur l'utilisateur non-root
 USER shopsafe
 
