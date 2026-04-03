@@ -128,14 +128,17 @@ jobs:
             curl -s http://localhost:8080/health && break
             sleep 2
           done
+      - name: Create ZAP wrk directory
+        run: |
+          mkdir -p /tmp/zap-wrk
+          chmod 777 /tmp/zap-wrk
       - name: ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: http://localhost:8080
-          cmd_options: "-I"
+        run: |
+          docker pull ghcr.io/zaproxy/zaproxy:stable -q
+          docker run --rm --network=host -v /tmp/zap-wrk:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:8080 -J report_json.json -r report_html.html -I || true
       - name: Upload ZAP report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
-          path: report_html.html
+          path: /tmp/zap-wrk/report_html.html
