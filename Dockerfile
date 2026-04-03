@@ -36,13 +36,11 @@ USER shopsafe
 # Les secrets (SECRET_KEY, DATABASE_URL) sont injectés au runtime
 # via les secrets Kubernetes, AWS Secrets Manager ou HashiCorp Vault
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    FLASK_ENV=production
+    PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
 
-# Gunicorn : jamais le serveur de développement Flask en production
 CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "3", "--timeout", "30", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "wsgi:application"]
