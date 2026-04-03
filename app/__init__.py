@@ -54,7 +54,7 @@ def _load_config(app: Flask, config_name: str):
         "TESTING":                    False,
         "DEBUG":                      False,                 # jamais True en prod
         "SECRET_KEY":                 os.environ.get("SECRET_KEY", _dev_secret()),
-        "DATABASE":                   os.environ.get("DATABASE_PATH", "shopsafe.db"),
+        "DATABASE": os.environ.get("DATABASE_PATH", "/tmp/shopsafe.db"),
         "SESSION_COOKIE_HTTPONLY":    True,
         "SESSION_COOKIE_SAMESITE":    "Lax",
         "SESSION_COOKIE_SECURE":      env == "production",   # HTTPS en prod
