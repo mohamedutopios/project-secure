@@ -45,11 +45,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
 
 # Gunicorn : jamais le serveur de développement Flask en production
-CMD ["gunicorn",
-     "--bind", "0.0.0.0:8080",
-     "--workers", "3",
-     "--timeout", "30",
-     "--access-logfile", "-",
-     "--error-logfile", "-",
-     "--log-level", "info",
-     "wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "3", "--timeout", "30", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "wsgi:application"]
