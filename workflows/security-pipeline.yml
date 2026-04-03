@@ -1,0 +1,141 @@
+name: ShopSafe Secure SDLC
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sast-semgrep:
+    name: SAST - Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: .semgrep.yml p/owasp-top-ten p/python p/secrets
+
+  secrets-gitleaks:
+    name: Secrets - Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  sca-trivy:
+    name: SCA - Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: json
+          output: trivy-report.json
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+
+  test-security:
+    name: Tests - pytest
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      FLASK_ENV: testing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run security tests
+        run: pytest tests/ -v --tb=short --junit-xml=pytest-report.xml --cov=app --cov-report=xml:coverage.xml --cov-fail-under=80
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            pytest-report.xml
+            coverage.xml
+
+  build-docker:
+    name: Build Docker
+    runs-on: ubuntu-latest
+    needs: [sast-semgrep, secrets-gitleaks, sca-trivy, test-security]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+  dast-zap:
+    name: DAST - OWASP ZAP
+    runs-on: ubuntu-latest
+    needs: [build-docker]
+    if: github.ref == 'refs/heads/main'
+    services:
+      shopsafe:
+        image: ghcr.io/${{ github.repository }}:${{ github.sha }}
+        env:
+          SECRET_KEY: ci-dast-key-not-for-production
+          FLASK_ENV: testing
+        ports:
+          - 8080:8080
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for app
+        run: |
+          for i in $(seq 1 30); do
+            curl -s http://localhost:8080/health && break
+            sleep 2
+          done
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: http://localhost:8080
+          cmd_options: "-I"
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: report_html.html

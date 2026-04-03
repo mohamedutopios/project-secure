@@ -1,0 +1,94 @@
+# Règles Semgrep custom pour ShopSafe
+# Complètent les règles p/owasp-top-ten et p/python
+# Bloquent les patterns spécifiquement interdits dans ce projet
+
+rules:
+
+  # Injection SQL — concaténation de chaînes dans execute()
+  - id: no-string-concat-in-sql
+    patterns:
+      - pattern: $DB.execute("..." + ...)
+      - pattern: $DB.execute(f"...")
+      - pattern: $DB.execute("...%s..." % ...)
+    message: >
+      Injection SQL détectée : concaténation de chaîne dans execute().
+      Utiliser des requêtes paramétrées : execute("SELECT ... WHERE x=?", (val,))
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: A03:2021
+
+  # Secret key hardcodée
+  - id: no-hardcoded-secret-key
+    patterns:
+      - pattern: app.secret_key = "..."
+      - pattern: SECRET_KEY = "..."
+    message: >
+      Secret key hardcodée détectée.
+      Utiliser os.environ.get("SECRET_KEY") ou un gestionnaire de secrets.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: A05:2021
+
+  # Debug mode activé
+  - id: no-debug-true-in-run
+    pattern: app.run(..., debug=True, ...)
+    message: >
+      debug=True ne doit jamais être utilisé en production.
+      Le debugger Werkzeug expose une RCE.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: security
+      owasp: A05:2021
+
+  # MD5 pour les mots de passe
+  - id: no-md5-for-passwords
+    patterns:
+      - pattern: hashlib.md5($PASSWORD)
+      - pattern: hashlib.sha1($PASSWORD)
+      - pattern: hashlib.sha256($PASSWORD)
+    message: >
+      MD5/SHA1/SHA256 ne sont pas adaptés au hachage de mots de passe.
+      Utiliser scrypt, bcrypt ou Argon2.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      category: security
+      owasp: A02:2021
+
+  # Numéro de carte dans les logs
+  - id: no-card-in-logs
+    patterns:
+      - pattern: logging.info(..., card_number, ...)
+      - pattern: print(..., card_number, ...)
+    message: >
+      Numéro de carte potentiellement loggé — violation PCI-DSS.
+    languages: [python]
+    severity: ERROR
+
+  # Mot de passe dans les logs
+  - id: no-password-in-logs
+    patterns:
+      - pattern: logging.$LEVEL(..., password, ...)
+      - pattern: print(..., password, ...)
+    message: >
+      Mot de passe potentiellement loggé — ne jamais logger des credentials.
+    languages: [python]
+    severity: ERROR
+    metadata:
+      owasp: A09:2021
+
+  # Render template sans escape
+  - id: no-unsafe-render-without-escape
+    pattern: render_template_string($TEMPLATE, ..., $VAR, ...)
+    message: >
+      Vérifier que toutes les variables insérées dans le template sont encodées
+      avec safe() ou markupsafe.escape() pour éviter le XSS.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      owasp: A03:2021
